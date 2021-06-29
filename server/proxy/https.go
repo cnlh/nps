@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"strings"
 
 	"ehang.io/nps/lib/cache"
 	"ehang.io/nps/lib/common"
@@ -79,6 +80,7 @@ func (https *HttpsServer) Start() error {
 					}
 				}
 			}
+			//change the host and header and set proxy setting
 			acceptConn := conn.NewConn(c)
 			acceptConn.Rb = rb
 			l.acceptConn <- acceptConn
@@ -103,7 +105,7 @@ func (https *HttpsServer) NewHttps(l net.Listener, certFile string, keyFile stri
 func (https *HttpsServer) handleHttps(c net.Conn) {
 	hostName, rb := GetServerNameFromClientHello(c)
 	var targetAddr string
-	r := buildHttpsRequest(hostName)
+	r := buildMyHttpsRequest(hostName,c)
 	var host *file.Host
 	var err error
 	if host, err = file.GetDb().GetInfoByHost(hostName, r); err != nil {
@@ -183,3 +185,20 @@ func buildHttpsRequest(hostName string) *http.Request {
 	r.Host = hostName
 	return r
 }
+
+func buildMyHttpsRequest(hostName string, c net.Conn) *http.Request {
+	r := new(http.Request)
+	r.RequestURI = "/"
+	r.URL = new(url.URL)
+	r.URL.Scheme = "https"
+	r.Host = hostName
+	r.Header = make(http.Header)
+        var addr string
+	addr = c.RemoteAddr().String()
+	addr = strings.Split(addr, ":")[0]
+	r.Header.Set("X-Forwarded-For", addr)
+	r.Header.Set("X-Real-IP", addr)
+	r.Header.Set("HTTP_X_IP", addr)
+	return r
+}
+
